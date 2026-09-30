@@ -246,7 +246,7 @@ elif st.session_state.tela == "pausa":
             st.session_state.tela = "quiz"
             st.rerun()
     with col2:
-        if st.button("⏹ Fechar programa e Gerar PDF"):
+        if st.button("⏹ Gerar relatório"):
             st.session_state.tela = "fim"
             st.rerun()
 
