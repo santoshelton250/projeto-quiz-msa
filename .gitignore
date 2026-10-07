@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Streamlit / logs temporarios
+.streamlit/secrets.toml
+_stderr.log
+_stdout.log
+*.log
+
+# Backup de imagens antigas (nao usadas pelo app)
+imagens_quiz_backup_antigas/
+
+# Dados grandes de OCR (nao necessarios em execucao)
+tessdata/
+
+# Relatorios gerados em runtime
+relatorios/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# PDFs das apostilas (nao distribuidos no repositorio)
+caderno*.pdf
