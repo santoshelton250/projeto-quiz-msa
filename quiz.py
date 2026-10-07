@@ -1,4 +1,4 @@
-"""
+"""s
 Quiz MSA - aplicacao interativa (Streamlit).
 
 Fluxo:
@@ -428,7 +428,12 @@ def _texto_pdf(texto: str) -> str:
 
 
 def gerar_pdf() -> bytes:
-    """Monta o relatorio em PDF (fpdf2) e retorna os bytes."""
+    """Monta o relatorio em PDF (fpdf2) e retorna os bytes.
+
+    Compativel com fpdf2 1.x e 2.x: usa largura explicita nos `multi_cell`
+    (evita o erro "Not enough horizontal space" da versao 2.8) e move o cursor
+    para a linha seguinte de forma portavel.
+    """
     from fpdf import FPDF
 
     aluno = _texto_pdf(st.session_state.aluno)
@@ -442,62 +447,73 @@ def gerar_pdf() -> bytes:
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
+    # Detalhes de compatibilidade entre versoes do fpdf2.
+    margem_esq = pdf.l_margin
+
+    def linha(txt: str, altura: float = 7, negrito: bool = False) -> None:
+        """Escreve uma linha simples ocupando toda a largura util."""
+        pdf.set_font("Helvetica", "B" if negrito else "", 11)
+        pdf.set_x(margem_esq)
+        largura = pdf.w - pdf.l_margin - pdf.r_margin
+        pdf.multi_cell(largura, altura, _texto_pdf(txt))
+
+    def paragrafo(
+        txt: str, altura: float = 6, negrito: bool = False,
+        cor: tuple[int, int, int] | None = None,
+    ) -> None:
+        """Escreve um paragrafo com quebra de linha automatica."""
+        pdf.set_font("Helvetica", "B" if negrito else "", 11)
+        if cor is not None:
+            pdf.set_text_color(*cor)
+        pdf.set_x(margem_esq)
+        largura = pdf.w - pdf.l_margin - pdf.r_margin
+        pdf.multi_cell(largura, altura, _texto_pdf(txt))
+        if cor is not None:
+            pdf.set_text_color(0, 0, 0)
+
     # Cabecalho
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Quiz MSA - Relatorio de Desempenho", ln=1)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, _texto_pdf(f"Aluno: {aluno}"), ln=1)
-    pdf.cell(0, 7, f"Modulo: {modulo}", ln=1)
-    pdf.cell(
-        0,
-        7,
-        f"Emitido em: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-        ln=1,
-    )
+    pdf.set_x(margem_esq)
+    pdf.multi_cell(pdf.w - pdf.l_margin - pdf.r_margin, 10,
+                   "Quiz MSA - Relatorio de Desempenho")
+    linha(f"Aluno: {aluno}")
+    linha(f"Modulo: {modulo}")
+    linha(f"Emitido em: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     pdf.ln(2)
 
     # Desempenho (nome do aluno ja consta no cabecalho).
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, f"Desempenho: {porcentagem:.1f}% de acertos", ln=1)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, f"Acertos: {acertos} de {respondidas} respondidas", ln=1)
+    linha(f"Desempenho: {porcentagem:.1f}% de acertos", altura=8, negrito=True)
+    linha(f"Acertos: {acertos} de {respondidas} respondidas")
     pdf.ln(3)
 
     # Revisao das questoes incorretas (sem listar as certas).
     if erros and st.session_state.registros_erro:
-        pdf.set_font("Helvetica", "B", 12)
-        pdf.cell(0, 8, "Revisao das questoes incorretas", ln=1)
-        pdf.set_font("Helvetica", "", 11)
+        linha("Revisao das questoes incorretas", altura=8, negrito=True)
 
         for registro in st.session_state.registros_erro:
             pdf.ln(1)
-            pdf.set_font("Helvetica", "B", 11)
-            pdf.multi_cell(0, 6, f"Questao {registro['numero']}")
-            pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(0, 6, _texto_pdf(f"Enunciado: {registro['enunciado']}"))
+            paragrafo(f"Questao {registro['numero']}", negrito=True)
+            paragrafo(f"Enunciado: {registro['enunciado']}")
 
             img_rel = registro.get("imagem")
             if img_rel and (RAIZ / img_rel).exists():
                 try:
                     pdf.ln(1)
+                    pdf.set_x(margem_esq)
                     pdf.image(str(RAIZ / img_rel), w=70)
+                    pdf.set_x(margem_esq)
                 except Exception:
                     pass
 
             pdf.ln(1)
-            pdf.set_text_color(180, 0, 0)
-            pdf.multi_cell(
-                0, 6, _texto_pdf(f"Sua resposta: {registro['resposta_aluno']}")
+            paragrafo(f"Sua resposta: {registro['resposta_aluno']}", cor=(180, 0, 0))
+            paragrafo(
+                f"Resposta correta: {registro['resposta_correta']}",
+                cor=(0, 130, 0),
             )
-            pdf.set_text_color(0, 130, 0)
-            pdf.multi_cell(
-                0, 6, _texto_pdf(f"Resposta correta: {registro['resposta_correta']}")
-            )
-            pdf.set_text_color(0, 0, 0)
             pdf.ln(3)
     else:
-        pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 6, "Parabens! Voce acertou todas as questoes.")
+        paragrafo("Parabens! Voce acertou todas as questoes.")
 
     saida = pdf.output(dest="S")
     # fpdf2 (v1.x) devolve str codificada em latin-1 quando dest="S".
