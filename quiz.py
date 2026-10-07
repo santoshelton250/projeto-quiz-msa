@@ -397,11 +397,41 @@ def tela_encerrado() -> None:
 # --------------------------------------------------------------------------- #
 # Geracao do PDF do relatorio
 # --------------------------------------------------------------------------- #
+# Mapa de caracteres "tipograficos"/gregos que nao existem em latin-1 (fontes
+# core do PDF) para equivalentes ASCII seguros.
+_MAPA_PDF = {
+    "\u2013": "-",    # en-dash
+    "\u2014": "-",    # em-dash
+    "\u2018": "'",    # aspas simples esquerda
+    "\u2019": "'",    # aspas simples direita
+    "\u201c": '"',    # aspas duplas esquerda
+    "\u201d": '"',    # aspas duplas direita
+    "\u2026": "...",  # reticencias
+    "\u2022": "-",    # bullet
+    "\u00a0": " ",    # espaco nao-quebravel
+    # Letras gregas que podem ter sido digitadas no lugar das latinas.
+    "\u039c": "M", "\u039d": "N", "\u039f": "O", "\u0391": "A",
+    "\u0392": "B", "\u0395": "E", "\u0397": "H", "\u0399": "I",
+    "\u039a": "K", "\u03a1": "P", "\u03a4": "T", "\u03a5": "Y",
+    "\u03a7": "X", "\u0396": "Z",
+}
+
+
+def _texto_pdf(texto: str) -> str:
+    """Normaliza um texto para os limites das fontes core (latin-1) do PDF."""
+    if not isinstance(texto, str):
+        texto = str(texto)
+    for origem, destino in _MAPA_PDF.items():
+        texto = texto.replace(origem, destino)
+    # Rede de seguranca: troca qualquer caractere fora do latin-1 por "?".
+    return texto.encode("latin-1", errors="replace").decode("latin-1")
+
+
 def gerar_pdf() -> bytes:
     """Monta o relatorio em PDF (fpdf2) e retorna os bytes."""
     from fpdf import FPDF
 
-    aluno = st.session_state.aluno
+    aluno = _texto_pdf(st.session_state.aluno)
     modulo = st.session_state.modulo
     respondidas = st.session_state.respondidas
     acertos = st.session_state.acertos
@@ -416,7 +446,7 @@ def gerar_pdf() -> bytes:
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "Quiz MSA - Relatorio de Desempenho", ln=1)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, f"Aluno: {aluno}", ln=1)
+    pdf.cell(0, 7, _texto_pdf(f"Aluno: {aluno}"), ln=1)
     pdf.cell(0, 7, f"Modulo: {modulo}", ln=1)
     pdf.cell(
         0,
@@ -444,7 +474,7 @@ def gerar_pdf() -> bytes:
             pdf.set_font("Helvetica", "B", 11)
             pdf.multi_cell(0, 6, f"Questao {registro['numero']}")
             pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(0, 6, f"Enunciado: {registro['enunciado']}")
+            pdf.multi_cell(0, 6, _texto_pdf(f"Enunciado: {registro['enunciado']}"))
 
             img_rel = registro.get("imagem")
             if img_rel and (RAIZ / img_rel).exists():
@@ -456,10 +486,12 @@ def gerar_pdf() -> bytes:
 
             pdf.ln(1)
             pdf.set_text_color(180, 0, 0)
-            pdf.multi_cell(0, 6, f"Sua resposta: {registro['resposta_aluno']}")
+            pdf.multi_cell(
+                0, 6, _texto_pdf(f"Sua resposta: {registro['resposta_aluno']}")
+            )
             pdf.set_text_color(0, 130, 0)
             pdf.multi_cell(
-                0, 6, f"Resposta correta: {registro['resposta_correta']}"
+                0, 6, _texto_pdf(f"Resposta correta: {registro['resposta_correta']}")
             )
             pdf.set_text_color(0, 0, 0)
             pdf.ln(3)
