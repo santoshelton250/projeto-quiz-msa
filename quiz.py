@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
-
+from PIL import Image, ImageOps, ImageEnhance
 # --------------------------------------------------------------------------- #
 # Configuracao geral
 # --------------------------------------------------------------------------- #
@@ -45,6 +45,11 @@ LETRAS = "ABCDEFGH"
 st.markdown(
     """
     <style>
+        [data-testid="stImage"] img {
+        max-width: 100% !important;
+        height: auto !important;
+        object-fit: contain;
+    }
     @media (max-width: 640px) {
         .block-container { padding-left: 0.8rem; padding-right: 0.8rem; }
         h1, h2, h3 { font-size: 1.3rem !important; }
@@ -60,7 +65,7 @@ st.markdown(
 # --------------------------------------------------------------------------- #
 # Carregamento dos dados
 # --------------------------------------------------------------------------- #
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=60)
 def carregar_dados() -> dict:
     """Le o banco de questoes gerado pelo extrator."""
     if not ARQUIVO_JSON.exists():
@@ -121,7 +126,7 @@ def tela_inicio() -> None:
     # Campos empilhados (um abaixo do outro).
     nome = st.text_input("Nome do aluno", key="campo_nome")
     modulo = st.text_input(
-        "Módulo (fase)",
+        "Fase",
         key="campo_modulo",
         placeholder=f"Digite um número de {modulos_disponiveis[0]} a "
         f"{modulos_disponiveis[-1]}",
@@ -147,12 +152,12 @@ def _iniciar_quiz(
     try:
         modulo = int(str(modulo_txt).strip())
     except (TypeError, ValueError):
-        st.warning("Digite um número de módulo válido.")
+        st.warning("Digite um número de fase válido.")
         return
     if modulo not in FASES:
         st.warning(
-            f"Módulo {modulo} não encontrado. "
-            f"Módulos disponíveis: {modulos_disponiveis}."
+            f"Fase {modulo} não encontrada. "
+            f"Fases disponíveis: {modulos_disponiveis}."
         )
         return
 
@@ -169,7 +174,7 @@ def _iniciar_quiz(
             return
         if numero_inicial not in numeros:
             st.warning(
-                f"A questão {numero_inicial} não existe no módulo {modulo}. "
+                f"A questão {numero_inicial} não existe na fase {modulo}. "
                 f"Faixa disponível: {numeros[0]} a {numeros[-1]}."
             )
             return
@@ -211,7 +216,7 @@ def tela_quiz() -> None:
     alternativas = questao["alternativas"]
     tem_imagem = bool(questao.get("imagem")) and (RAIZ / questao["imagem"]).exists()
 
-    st.markdown(f"### Módulo {st.session_state.modulo} — Questão {numero}")
+    st.markdown(f"### Fase {st.session_state.modulo} — Questão {numero}")
     st.caption(
         f"Aluno: {st.session_state.aluno}  |  "
         f"Questão {indice + 1} de {len(questoes)}"
@@ -227,6 +232,7 @@ def tela_quiz() -> None:
         col_texto, col_img = st.container(), None
 
     alternativa_escolhida = None
+    
     with col_texto:
         st.markdown(f"**{questao['enunciado']}**")
         st.write("")
@@ -242,11 +248,44 @@ def tela_quiz() -> None:
 
     if col_img is not None:
         with col_img:
-            st.image(
-                str(RAIZ / questao["imagem"]),
-                caption="Figura da questão",
-                width=340,
+            caminho_imagem = RAIZ / questao["imagem"]
+
+            with Image.open(caminho_imagem) as arquivo:
+                imagem = arquivo.copy()
+
+            # Melhorar a nitidez de todas as figuras
+            imagem = ImageOps.grayscale(imagem)
+            imagem = ImageOps.autocontrast(imagem)
+            imagem = ImageEnhance.Contrast(imagem).enhance(1.15)
+            imagem = ImageEnhance.Sharpness(imagem).enhance(1.25)
+
+            largura, altura = imagem.size
+            proporcao = largura / altura
+
+            if proporcao < 0.75:
+                largura_maxima = 170
+                altura_maxima = 220
+
+            elif proporcao > 1.8:
+                largura_maxima = 650
+                altura_maxima = 320
+
+            else:
+                largura_maxima = 330
+                altura_maxima = 300
+
+            imagem.thumbnail(
+                (largura_maxima, altura_maxima),
+                Image.Resampling.LANCZOS
             )
+
+           
+            st.image(
+                imagem,
+                caption="Figura da questão",
+                width="stretch" if imagem.width > 400 else "content"
+            )
+
 
     st.divider()
 
@@ -316,7 +355,7 @@ def _registrar_resposta(questao: dict, indice_escolhido: int) -> None:
 def tela_relatorio() -> None:
     st.title("📊 Relatório de Desempenho")
     st.markdown(f"**Aluno:** {st.session_state.aluno}")
-    st.markdown(f"**Módulo:** {st.session_state.modulo}")
+    st.markdown(f"**Fase:** {st.session_state.modulo}")
     st.divider()
 
     respondidas = st.session_state.respondidas
@@ -343,8 +382,32 @@ def tela_relatorio() -> None:
             with st.container(border=True):
                 st.markdown(f"**Questão {registro['numero']}**")
                 st.markdown(f"*Enunciado:* {registro['enunciado']}")
+               
+               
                 if registro.get("imagem") and (RAIZ / registro["imagem"]).exists():
-                    st.image(str(RAIZ / registro["imagem"]), width=300)
+                    caminho = RAIZ / registro["imagem"]
+
+                    with Image.open(caminho) as arquivo:
+                        largura, altura = arquivo.size
+
+                    # Tamanho máximo na tela, em pixels
+                    largura_maxima = 450
+                    altura_maxima = 180
+
+                    # Reduz proporcionalmente, sem ampliar
+                    fator = min(
+                        1.0,
+                        largura_maxima / largura,
+                        altura_maxima / altura
+                    )
+
+                    largura_final = max(1, int(largura * fator))
+
+                    st.image(
+                        str(caminho),
+                        width=largura_final
+                    )
+
                 st.markdown(f"❌ **Sua resposta:** {registro['resposta_aluno']}")
                 st.markdown(
                     f"✅ **Resposta correta:** {registro['resposta_correta']}"
@@ -495,15 +558,42 @@ def gerar_pdf() -> bytes:
             paragrafo(f"Questao {registro['numero']}", negrito=True)
             paragrafo(f"Enunciado: {registro['enunciado']}")
 
+           
             img_rel = registro.get("imagem")
             if img_rel and (RAIZ / img_rel).exists():
                 try:
+                    caminho = RAIZ / img_rel
+
+                    with Image.open(caminho) as arquivo:
+                        largura, altura = arquivo.size
+
+                    # Limites máximos no PDF, em milímetros
+                    largura_maxima = 70
+                    altura_maxima = 40
+
+                    # Preserva a proporção da imagem
+                    fator = min(
+                        largura_maxima / largura,
+                        altura_maxima / altura
+                    )
+
+                    largura_pdf = largura * fator
+                    altura_pdf = altura * fator
+
                     pdf.ln(1)
                     pdf.set_x(margem_esq)
-                    pdf.image(str(RAIZ / img_rel), w=70)
+
+                    pdf.image(
+                        str(caminho),
+                        w=largura_pdf,
+                        h=altura_pdf
+                    )
+
                     pdf.set_x(margem_esq)
+
                 except Exception:
                     pass
+
 
             pdf.ln(1)
             paragrafo(f"Sua resposta: {registro['resposta_aluno']}", cor=(180, 0, 0))

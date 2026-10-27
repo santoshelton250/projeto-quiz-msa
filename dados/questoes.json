@@ -528,7 +528,7 @@
             "Penta = cinco; grama=linha",
             "Penta = seis; grama linha"
           ],
-          "correta": 1,
+          "correta": 2,
           "imagem": null
         },
         {
@@ -552,7 +552,7 @@
             "Preparar os candidatos com condições para tocarem somente nos Ensaios e na Reunião de Jovens e Menores.",
             "Preparar os candidatos com condições satisfatórias para execução dos Hinos e do exame de Oficialização."
           ],
-          "correta": 2,
+          "correta": 3,
           "imagem": null
         },
         {
@@ -3544,7 +3544,7 @@
         },
         {
           "numero": 5,
-          "enunciado": "O que são tercinas? Exemplo: 6 = 8",
+          "enunciado": "O que são tercinas?",
           "alternativas": [
             "São grupos de 3 figuras colocadas no lugar em que normalmente cabem 2 figuras do mesmo valor",
             "São grupos de 4 figuras colocadas no lugar em que normalmente cabem 3 figuras do mesmo valor",
@@ -4441,7 +4441,7 @@
             "Composto"
           ],
           "correta": 1,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_6_pergunta_42.png"
         },
         {
           "numero": 44,
@@ -4881,7 +4881,7 @@
             "Sol maior; seguiu uma ordem a partir da escala modelo de dó maior, através do quinto grau (V) ascendente (círculo das quintas)."
           ],
           "correta": 3,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_7_pergunta_1.png"
         },
         {
           "numero": 3,
@@ -5368,7 +5368,7 @@
             "3 pulsos ou movimentos."
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_7_pergunta_43.png"
+          "imagem": "imagens_quiz/fase_7_pergunta_43_nova.png"
         },
         {
           "numero": 44,
@@ -5583,7 +5583,7 @@
             "A partir do segundo sustenido, a próxima nota será à tonalidade."
           ],
           "correta": 2,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_8_pergunta_3.png"
         },
         {
           "numero": 4,
@@ -5607,7 +5607,7 @@
             "A partir do último bemol, eleva-se uma quinta e chega-se a tonalidade de Lá bemol Maior."
           ],
           "correta": 3,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_8_pergunta_5.png"
         },
         {
           "numero": 6,
@@ -5979,7 +5979,7 @@
             "Somente acidentes fixos"
           ],
           "correta": 2,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_8_pergunta_36.png"
         },
         {
           "numero": 37,
@@ -6460,7 +6460,7 @@
         },
         {
           "numero": 27,
-          "enunciado": "Quantas casas de ritornello o hino 63 possui, segundo 0 documento?",
+          "enunciado": "Quantas casas de ritornello o hino 63 possui, segundo o documento?",
           "alternativas": [
             "2 casas",
             "3 casas",
@@ -6680,7 +6680,7 @@
         },
         {
           "numero": 13,
-          "enunciado": "Complete: A** é a variação de intensidade do som de maneira gradual.",
+          "enunciado": "Complete: A ___________ é a variação de intensidade do som de maneira gradual.",
           "alternativas": [
             "Síncopa",
             "Dinâmica",
@@ -6820,7 +6820,7 @@
             "Pianíssimo"
           ],
           "correta": 1,
-          "imagem": "imagens_quiz/fase_10_pergunta_24.png"
+          "imagem": null
         },
         {
           "numero": 25,
@@ -6832,7 +6832,7 @@
             "Quase crescendo"
           ],
           "correta": 0,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_10_pergunta_25.png"
         },
         {
           "numero": 26,
