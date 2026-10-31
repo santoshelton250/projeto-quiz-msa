@@ -26,3 +26,9 @@ Thumbs.db
 
 # PDFs das apostilas (nao distribuidos no repositorio)
 caderno*.pdf
+
+# Backups locais e arquivos de teste (nao versionar)
+*.bak
+*.bak2
+*.bak_*
+_test*.pdf
