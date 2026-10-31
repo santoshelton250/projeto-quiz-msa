@@ -20,10 +20,12 @@ Executar:
 from __future__ import annotations
 
 import json
+import random
 from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageOps, ImageEnhance
 # --------------------------------------------------------------------------- #
 # Configuracao geral
@@ -79,6 +81,240 @@ FASES = {fase["fase"]: fase["questoes"] for fase in DADOS.get("fases", [])}
 
 
 # --------------------------------------------------------------------------- #
+# Geracao de simulado (somente instrutor, protegido por senha)
+# --------------------------------------------------------------------------- #
+LIMIAR_IGUALITARIO = 30  # ate esse total usa distribuicao igualitaria
+
+
+def senha_instrutor_confere(tentativa: str) -> bool:
+    """Compara a senha digitada com a guardada em .streamlit/secrets.toml."""
+    try:
+        senha_correta = str(st.secrets.get("senha_instrutor", ""))
+    except Exception:
+        # Sem secrets configurado: nao autoriza (seguro por padrao).
+        return False
+    if not senha_correta:
+        return False
+    return tentativa == senha_correta
+
+
+def _distribuir_igualitario(total: int, fases: list[int]) -> dict[int, int]:
+    """Distribui o total o mais igualmente possivel entre as fases.
+
+    Cada fase recebe no minimo 1 (desde que o total permita). As sobras sao
+    distribuidas 1 a 1, de forma aleatoria, sem repetir enquanto houver fases
+    que ainda possam receber.
+    """
+    k = len(fases)
+    if total <= 0 or k == 0:
+        return {f: 0 for f in fases}
+
+    # Caso especial: pedido menor que o numero de fases -> sorteia quais fases
+    # recebem 1 questao (as demais ficam com 0).
+    if total < k:
+        escolhidas = random.sample(fases, total)
+        return {f: (1 if f in escolhidas else 0) for f in fases}
+
+    base = total // k
+    sobra = total - base * k
+
+    dist = {f: base for f in fases}
+    if sobra:
+        # Sorteia quais fases recebem +1 (sem padrao fixo).
+        for f in random.sample(fases, sobra):
+            dist[f] += 1
+    return dist
+
+
+def _distribuir_proporcional(total: int, fases: list[int]) -> dict[int, int]:
+    """Distribui proporcionalmente ao tamanho (n de questoes) de cada fase.
+
+    Garante ao menos 1 questao por fase, desde que o total permita. O metodo
+    do "maior resto" ajusta o arredondamento para bater exatamente o total.
+    """
+    k = len(fases)
+    if total <= 0 or k == 0:
+        return {f: 0 for f in fases}
+
+    tamanhos = {f: len(FASES.get(f, [])) for f in fases}
+    soma_tamanhos = sum(tamanhos.values())
+    if soma_tamanhos == 0:
+        return {f: 0 for f in fases}
+
+    if total < k:
+        escolhidas = random.sample(fases, total)
+        return {f: (1 if f in escolhidas else 0) for f in fases}
+
+    # Reserva 1 por fase e distribui o restante proporcionalmente.
+    reserva = {f: 1 for f in fases}
+    restante = total - k
+
+    if restante == 0:
+        return reserva
+
+    cotas = {f: restante * tamanhos[f] / soma_tamanhos for f in fases}
+    dist = {f: reserva[f] + int(cotas[f] // 1) for f in fases}
+
+    # Ajusta pelo metodo do maior resto.
+    alocado = sum(dist.values())
+    faltam = total - alocado
+    if faltam > 0:
+        ordem = sorted(fases, key=lambda f: (cotas[f] % 1), reverse=True)
+        i = 0
+        while faltam > 0:
+            f = ordem[i % len(ordem)]
+            # Nao pedir mais do que a fase possui.
+            if dist[f] < tamanhos[f]:
+                dist[f] += 1
+                faltam -= 1
+            i += 1
+            if i > len(ordem) * (len(ordem) + total):
+                break
+    elif faltam < 0:
+        # Remove excedente das menores cotas (mantendo min 1).
+        ordem = sorted(fases, key=lambda f: (cotas[f] % 1))
+        i = 0
+        while faltam < 0:
+            f = ordem[i % len(ordem)]
+            if dist[f] > 1:
+                dist[f] -= 1
+                faltam += 1
+            i += 1
+            if i > len(ordem) * (len(ordem) + total):
+                break
+
+    # Respeita o limite fisico de cada fase e redistribui o que sobrar.
+    excedente = 0
+    for f in fases:
+        if dist[f] > tamanhos[f]:
+            excedente += dist[f] - tamanhos[f]
+            dist[f] = tamanhos[f]
+    guard = 0
+    while excedente > 0 and guard < 10000:
+        guard += 1
+        candidatas = [f for f in fases if dist[f] < tamanhos[f]]
+        if not candidatas:
+            break
+        # Distribui onde ha mais espaco, sem padrao fixo.
+        f = max(candidatas, key=lambda x: tamanhos[x] - dist[x])
+        dist[f] += 1
+        excedente -= 1
+
+    return dist
+
+
+def gerar_questoes_simulado(
+    fase_ini: int, fase_fim: int, total: int
+) -> list[dict]:
+    """Sorteia e monta a lista de questoes do simulado.
+
+    - Seleciona aleatoriamente as questoes dentro de cada fase.
+    - Ordena por fase crescente e, dentro da fase, por numero crescente.
+    - Cada questao recebe 'numero_exibicao' (1, 2, 3...) sem alterar o banco.
+    """
+    fases = sorted(f for f in FASES if fase_ini <= f <= fase_fim)
+    if not fases:
+        return []
+
+    if total <= LIMIAR_IGUALITARIO:
+        dist = _distribuir_igualitario(total, fases)
+    else:
+        dist = _distribuir_proporcional(total, fases)
+
+    selecionadas: list[dict] = []
+    for f in fases:
+        disponiveis = FASES.get(f, [])
+        qtd = min(dist.get(f, 0), len(disponiveis))
+        if qtd <= 0:
+            continue
+        escolhidas = random.sample(disponiveis, qtd)
+        for q in escolhidas:
+            item = dict(q)  # copia: nao altera o banco original
+            item["fase_origem"] = f
+            item["numero_origem"] = q["numero"]
+            selecionadas.append(item)
+
+    # Ordena por fase crescente e numero crescente (sem embaralhar).
+    selecionadas.sort(key=lambda q: (q["fase_origem"], q["numero_origem"]))
+
+    # Numeracao sequencial so para exibicao (1, 2, 3...).
+    for i, item in enumerate(selecionadas, start=1):
+        item["numero_exibicao"] = i
+
+    return selecionadas
+
+
+# --------------------------------------------------------------------------- #
+# Detector de troca de aba/app (Page Visibility API)
+# --------------------------------------------------------------------------- #
+def _render_detector_visibilidade() -> None:
+    """Conta quantas vezes a pagina ficou oculta (aluno saiu da tela).
+
+    Estrategia: o JavaScript acumula a contagem no localStorage do navegador e
+    grava o valor na URL (hash). O Python le esse hash via st.query_params e
+    sincroniza para o session_state. Nao bloqueia nada: apenas registra.
+
+    Limitacao honesta: o navegador nao permite IMPEDIR a troca de aba, apenas
+    detecta. O registro serve como evidencia para o professor no relatorio.
+    """
+    components.html(
+        """<div id="silent"></div>
+        <script>
+        (function () {
+            const CHAVE = "quiz_msa_saidas_tela";
+            try {
+                if (localStorage.getItem(CHAVE) === null) {
+                    localStorage.setItem(CHAVE, "0");
+                }
+                function contar() {
+                    let n = parseInt(localStorage.getItem(CHAVE) || "0", 10);
+                    n += 1;
+                    localStorage.setItem(CHAVE, String(n));
+                    // Publica a contagem na URL do frame pai para o Python ler.
+                    try {
+                        const base = window.parent.location.href.split("#")[0];
+                        window.parent.location.hash = "saidas=" + n;
+                    } catch (e) {}
+                }
+                document.addEventListener("visibilitychange", function () {
+                    if (document.visibilityState === "hidden") { contar(); }
+                });
+                window.addEventListener("blur", function () {
+                    const agora = Date.now();
+                    const ultimo = parseInt(localStorage.getItem(CHAVE + "_ts") || "0", 10);
+                    if (agora - ultimo > 500) {
+                        localStorage.setItem(CHAVE + "_ts", String(agora));
+                        contar();
+                    }
+                });
+                // Repassa o valor atual para a URL assim que carrega.
+                const atual = localStorage.getItem(CHAVE) || "0";
+                try {
+                    window.parent.location.hash = "saidas=" + atual;
+                } catch (e) {}
+            } catch (e) {}
+        })();
+        </script>""",
+        height=0,
+        width=0,
+    )
+
+
+def _sincronizar_saidas_tela() -> None:
+    """Le o hash 'saidas=N' da URL e guarda no session_state (so aumenta)."""
+    try:
+        params = st.query_params
+        valor = params.get("saidas")
+        if valor is not None:
+            n = int(str(valor).split("=")[-1] if "=" in str(valor) else valor)
+            atual = int(st.session_state.get("saidas_tela", 0) or 0)
+            if n > atual:
+                st.session_state.saidas_tela = n
+    except Exception:
+        pass
+
+
+# --------------------------------------------------------------------------- #
 # Estado da sessao
 # --------------------------------------------------------------------------- #
 def inicializar_estado() -> None:
@@ -95,6 +331,10 @@ def inicializar_estado() -> None:
         "ja_respondida": False,
         "ultimo_acerto": None,
         "pdf_bytes": None,           # relatorio em PDF (cache da sessao)
+        "modo_simulado": False,      # True quando a sessao eh um simulado
+        "fases_simulado": "",        # texto "Fase 1 a 16" para exibicao
+        "senha_liberada": False,     # instrutor autenticou nesta sessao
+        "saidas_tela": 0,            # n de vezes que saiu da tela no simulado
     }
     for chave, valor in padroes.items():
         if chave not in st.session_state:
@@ -139,6 +379,30 @@ def tela_inicio() -> None:
 
     if st.button("Iniciar Quiz", type="primary", use_container_width=True):
         _iniciar_quiz(nome, modulo, numero_txt, modulos_disponiveis)
+
+    st.divider()
+
+    # --- Area do instrutor: gerar simulado (protegido por senha) ---
+    with st.expander("🔒 Gerar simulado (instrutor)"):
+        st.caption(
+            "Área exclusiva do instrutor/professor. Informe a senha para "
+            "gerar um simulado com questões sorteadas do banco."
+        )
+        senha_digitada = st.text_input(
+            "Senha do instrutor",
+            type="password",
+            key="campo_senha",
+        )
+        if st.button("Liberar geração", use_container_width=True):
+            if senha_instrutor_confere(senha_digitada):
+                st.session_state.senha_liberada = True
+                st.success("Senha correta. Preencha os dados do simulado abaixo.")
+            else:
+                st.session_state.senha_liberada = False
+                st.error("Senha incorreta.")
+
+        if st.session_state.get("senha_liberada"):
+            _form_gerar_simulado()
 
 
 def _iniciar_quiz(
@@ -200,11 +464,131 @@ def _iniciar_quiz(
 
 
 # --------------------------------------------------------------------------- #
+# Formulario de geracao de simulado (exibido apos senha correta)
+# --------------------------------------------------------------------------- #
+def _form_gerar_simulado() -> None:
+    modulos_disponiveis = sorted(FASES.keys())
+    minimo, maximo = modulos_disponiveis[0], modulos_disponiveis[-1]
+
+    st.markdown("**Configurar simulado**")
+    col1, col2 = st.columns(2)
+    with col1:
+        fase_ini_txt = st.text_input(
+            "Fase inicial", key="sim_fase_ini",
+            placeholder=f"{minimo} a {maximo}",
+        )
+    with col2:
+        fase_fim_txt = st.text_input(
+            "Fase final", key="sim_fase_fim",
+            placeholder=f"{minimo} a {maximo}",
+        )
+
+    total_txt = st.text_input(
+        "Número de questões", key="sim_total",
+        placeholder="Ex.: 30",
+    )
+
+    if st.button("Gerar simulado", type="primary", use_container_width=True):
+        _iniciar_simulado(
+            fase_ini_txt, fase_fim_txt, total_txt, modulos_disponiveis
+        )
+
+
+def _iniciar_simulado(
+    fase_ini_txt: str, fase_fim_txt: str, total_txt: str,
+    modulos_disponiveis: list[int],
+) -> None:
+    # Valida fase inicial e final.
+    try:
+        fase_ini = int(str(fase_ini_txt).strip())
+        fase_fim = int(str(fase_fim_txt).strip())
+    except (TypeError, ValueError):
+        st.warning("Digite números de fase válidos.")
+        return
+
+    if fase_ini > fase_fim:
+        st.warning("A fase inicial deve ser menor ou igual à fase final.")
+        return
+
+    fases_existentes = [f for f in modulos_disponiveis
+                        if fase_ini <= f <= fase_fim]
+    if not fases_existentes:
+        st.warning(
+            f"Não há fases entre {fase_ini} e {fase_fim}. "
+            f"Fases disponíveis: {modulos_disponiveis}."
+        )
+        return
+
+    # Valida total de questoes.
+    try:
+        total = int(str(total_txt).strip())
+    except (TypeError, ValueError):
+        st.warning("Digite um número de questões válido.")
+        return
+    if total <= 0:
+        st.warning("O número de questões deve ser maior que zero.")
+        return
+
+    disponiveis_total = sum(
+        len(FASES[f]) for f in fases_existentes
+    )
+    if total > disponiveis_total:
+        st.warning(
+            f"Você pediu {total} questões, mas as fases selecionadas têm "
+            f"apenas {disponiveis_total} no total."
+        )
+        return
+
+    questoes = gerar_questoes_simulado(fase_ini, fase_fim, total)
+    if not questoes:
+        st.warning("Não foi possível gerar o simulado. Verifique os dados.")
+        return
+
+    # Aplica a sessao do simulado. Nome do aluno vem do campo da tela inicial.
+    nome = (st.session_state.get("campo_nome") or "").strip()
+    if not nome:
+        st.warning(
+            "Preencha o nome do aluno no campo acima antes de gerar o simulado."
+        )
+        return
+
+    st.session_state.aluno = nome
+    st.session_state.modulo = fase_ini
+    st.session_state.questoes = questoes
+    st.session_state.indice = 0
+    st.session_state.respondidas = 0
+    st.session_state.acertos = 0
+    st.session_state.erros = 0
+    st.session_state.registros_erro = []
+    st.session_state.ja_respondida = False
+    st.session_state.ultimo_acerto = None
+    st.session_state.pdf_bytes = None
+    st.session_state.modo_simulado = True
+    st.session_state.fases_simulado = (
+        f"Fase {fase_ini}" if fase_ini == fase_fim
+        else f"Fases {fase_ini} a {fase_fim}"
+    )
+    st.session_state.saidas_tela = 0  # zera o contador para este simulado
+    # Seguranca: destrava a senha imediatamente. Para gerar outro simulado,
+    # o instrutor precisara digitar a senha novamente.
+    st.session_state.senha_liberada = False
+    st.session_state.tela = "quiz"
+    st.rerun()
+
+
+
+# --------------------------------------------------------------------------- #
 # Tela 2 - Quiz
 # --------------------------------------------------------------------------- #
 def tela_quiz() -> None:
     questoes = st.session_state.questoes
     indice = st.session_state.indice
+
+    # No simulado: monitora troca de aba/app (apenas registra, nao impede).
+    simulado_ativo = st.session_state.get("modo_simulado")
+    if simulado_ativo:
+        _render_detector_visibilidade()
+        _sincronizar_saidas_tela()
 
     if not questoes or indice >= len(questoes):
         st.session_state.tela = "relatorio"
@@ -212,11 +596,25 @@ def tela_quiz() -> None:
         return
 
     questao = questoes[indice]
-    numero = questao["numero"]
+    # No simulado exibimos numero sequencial (1, 2, 3...); no quiz normal,
+    # o numero real da questao no banco.
+    simulado = st.session_state.get("modo_simulado")
+    if simulado:
+        numero = questao.get("numero_exibicao", indice + 1)
+        titulo = f"### Simulado — Questão {numero}"
+    else:
+        numero = questao["numero"]
+        titulo = f"### Fase {st.session_state.modulo} — Questão {numero}"
+
     alternativas = questao["alternativas"]
     tem_imagem = bool(questao.get("imagem")) and (RAIZ / questao["imagem"]).exists()
 
-    st.markdown(f"### Fase {st.session_state.modulo} — Questão {numero}")
+    st.markdown(titulo)
+    if simulado_ativo and int(st.session_state.get("saidas_tela", 0) or 0) > 0:
+        st.warning(
+            "⚠️ Detectamos que você saiu da tela do simulado. "
+            "Isso está sendo registrado no relatório."
+        )
     st.caption(
         f"Aluno: {st.session_state.aluno}  |  "
         f"Questão {indice + 1} de {len(questoes)}"
@@ -335,9 +733,14 @@ def _registrar_resposta(questao: dict, indice_escolhido: int) -> None:
         st.session_state.acertos += 1
     else:
         st.session_state.erros += 1
+        # No simulado usamos o numero sequencial; no quiz normal, o do banco.
+        if st.session_state.get("modo_simulado"):
+            numero_exibir = questao.get("numero_exibicao", questao["numero"])
+        else:
+            numero_exibir = questao["numero"]
         st.session_state.registros_erro.append(
             {
-                "numero": questao["numero"],
+                "numero": numero_exibir,
                 "enunciado": questao["enunciado"],
                 "imagem": questao.get("imagem"),
                 "resposta_aluno": questao["alternativas"][indice_escolhido],
@@ -355,7 +758,10 @@ def _registrar_resposta(questao: dict, indice_escolhido: int) -> None:
 def tela_relatorio() -> None:
     st.title("📊 Relatório de Desempenho")
     st.markdown(f"**Aluno:** {st.session_state.aluno}")
-    st.markdown(f"**Fase:** {st.session_state.modulo}")
+    if st.session_state.get("modo_simulado"):
+        st.markdown(f"**Simulado:** {st.session_state.get('fases_simulado', '')}")
+    else:
+        st.markdown(f"**Fase:** {st.session_state.modulo}")
     st.divider()
 
     respondidas = st.session_state.respondidas
@@ -372,6 +778,20 @@ def tela_relatorio() -> None:
     col1.metric("Desempenho", f"{porcentagem:.1f}%")
     col2.metric("Acertos", acertos)
     col3.metric("Erros", erros)
+
+    # Evidencia de comportamento (somente no simulado).
+    if st.session_state.get("modo_simulado"):
+        saidas = int(st.session_state.get("saidas_tela", 0) or 0)
+        if saidas > 0:
+            st.warning(
+                f"⚠️ Registro de monitoramento: o aluno saiu da tela do "
+                f"simulado **{saidas} vez(es)**."
+            )
+        else:
+            st.info(
+                "✅ Monitoramento: o aluno permaneceu na tela durante todo "
+                "o simulado."
+            )
     st.divider()
 
     if erros == 0:
@@ -434,6 +854,8 @@ def _nome_arquivo_pdf() -> str:
         c if c.isalnum() else "_" for c in st.session_state.aluno
     ).strip("_") or "aluno"
     data = datetime.now().strftime("%Y%m%d_%H%M")
+    if st.session_state.get("modo_simulado"):
+        return f"relatorio_{aluno}_simulado_{data}.pdf"
     return f"relatorio_{aluno}_modulo{st.session_state.modulo}_{data}.pdf"
 
 
@@ -446,6 +868,15 @@ def _botoes_finais() -> None:
     with col_b:
         if st.button("Encerrar", type="primary", use_container_width=True):
             st.session_state.tela = "encerrado"
+            st.rerun()
+
+    # No simulado, oferece saida para a tela inicial (volta a pedir senha).
+    if st.session_state.get("modo_simulado"):
+        if st.button(
+            "🔚 Sair do simulado (voltar ao início)",
+            use_container_width=True,
+        ):
+            reiniciar()  # limpa a sessao: senha volta a ser exigida
             st.rerun()
 
 
@@ -540,13 +971,28 @@ def gerar_pdf() -> bytes:
     pdf.multi_cell(pdf.w - pdf.l_margin - pdf.r_margin, 10,
                    "Quiz MSA - Relatorio de Desempenho")
     linha(f"Aluno: {aluno}")
-    linha(f"Modulo: {modulo}")
+    if st.session_state.get("modo_simulado"):
+        linha(f"Simulado: {st.session_state.get('fases_simulado', '')}")
+    else:
+        linha(f"Modulo: {modulo}")
     linha(f"Emitido em: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     pdf.ln(2)
 
     # Desempenho (nome do aluno ja consta no cabecalho).
     linha(f"Desempenho: {porcentagem:.1f}% de acertos", altura=8, negrito=True)
     linha(f"Acertos: {acertos} de {respondidas} respondidas")
+
+    # Evidencia de monitoramento (somente simulado).
+    if st.session_state.get("modo_simulado"):
+        saidas = int(st.session_state.get("saidas_tela", 0) or 0)
+        if saidas > 0:
+            paragrafo(
+                f"Monitoramento: o aluno saiu da tela {saidas} vez(es).",
+                cor=(180, 0, 0),
+            )
+        else:
+            paragrafo("Monitoramento: o aluno permaneceu na tela.")
+
     pdf.ln(3)
 
     # Revisao das questoes incorretas (sem listar as certas).
