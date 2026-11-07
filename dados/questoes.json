@@ -5971,7 +5971,7 @@
         },
         {
           "numero": 36,
-          "enunciado": "Os acidentes presentes no hino acima são:",
+          "enunciado": "Os acidentes presentes no hino são:",
           "alternativas": [
             "Acidentes fixos e precaução",
             "Acidentes ocorrentes e precaução",
@@ -7104,7 +7104,7 @@
         },
         {
           "numero": 5,
-          "enunciado": "Nos compassos compostos para obtermos a UNIDADE DE TEMPO, basta ____ por ____ o número inferior",
+          "enunciado": "Nos compassos compostos para obtermos a UNIDADE DE TEMPO, basta ____ por ____",
           "alternativas": [
             "Multiplicar; três",
             "Dividir; três",
