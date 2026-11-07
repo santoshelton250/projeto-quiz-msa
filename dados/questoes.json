@@ -9749,17 +9749,6 @@
         },
         {
           "numero": 35,
-          "enunciado": "Qual é a única expressão abaixo que é utilizada nos hinos para modificação de andamento?",
-          "alternativas": [
-            "Ritenuto.",
-            "Accelerando.",
-            "Poco rallentando."
-          ],
-          "correta": 2,
-          "imagem": null
-        },
-        {
-          "numero": 36,
           "enunciado": "Quando vemos a indicação do poco rall. em um hino, devemos iniciar automaticamente uma:",
           "alternativas": [
             "Redução abrupta do andamento.",
@@ -9770,7 +9759,7 @@
           "imagem": null
         },
         {
-          "numero": 37,
+          "numero": 36,
           "enunciado": "Com a análise do trecho acima, a indicação ( c= 108 - 132 ) que aparece no hino, representa:",
           "alternativas": [
             "o limite mínimo e máximo da velocidade a ser empregada no hino: inicia-se a execução a 108 bpm, e finaliza-se a 132 bpm.",
@@ -9778,10 +9767,10 @@
             "as velocidades mínima e máxima, determinando os limites dentro dos quais o hino deve ser entoado, sendo recomendável que o andamento fique na média das velocidades possíveis."
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_15_pergunta_37.png"
+          "imagem": "imagens_quiz/fase_15_pergunta_36.png"
         },
         {
-          "numero": 38,
+          "numero": 37,
           "enunciado": "Com a análise do trecho acima, convém a organista executar o hino com a colcheia abaixo de 108 bpm?",
           "alternativas": [
             "Sim, pois o andamento é somente uma sugestão.",
@@ -9789,10 +9778,10 @@
             "Em regra não, com exceção da meia hora que poderá ser abaixo, porém próxima à velocidade mínima indicada."
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_15_pergunta_38.png"
+          "imagem": "imagens_quiz/fase_15_pergunta_37.png"
         },
         {
-          "numero": 39,
+          "numero": 38,
           "enunciado": "Com a análise do trecho acima, quando os músicos devem iniciar a execução do poco rall.?",
           "alternativas": [
             "No início do sistema que está escrito poco rall..",
@@ -9800,10 +9789,10 @@
             "Quando começa a expressão poco rall., no acorde \"fa -si-ré-fa \", que na 1ª estrofe corresponde à sílaba \"da\" da palavra \"vida\""
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_15_pergunta_39.png"
+          "imagem": "imagens_quiz/fase_15_pergunta_38.png"
         },
         {
-          "numero": 40,
+          "numero": 39,
           "enunciado": "De que maneira podemos evitar modificações indevidas de andamento?",
           "alternativas": [
             "Aplicando o poco rallentando após fermatas ou finais de estrofes, de modo padronizado.",
@@ -9811,10 +9800,10 @@
             "Executar atentamente a peça musical, evitando alterações indevidas no andamento sem a indicação de expressões ou sinais musicais."
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_15_pergunta_40.png"
+          "imagem": "imagens_quiz/fase_15_pergunta_39.png"
         },
         {
-          "numero": 41,
+          "numero": 40,
           "enunciado": "Com a análise do trecho acima, de que modo deve ser executado o trecho logo após a fermata?",
           "alternativas": [
             "Sugere-se aplicar o poco rallentando para dar mais ênfase ao final da estrofe.",
@@ -9822,10 +9811,10 @@
             "Como não há qualquer indicação de modificação de andamento, deve-se retomar o trecho na mesma velocidade utilizada antes da fermata, de maneira precisa e proporção correta entre as figuras."
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_15_pergunta_41.png"
+          "imagem": "imagens_quiz/fase_15_pergunta_40.png"
         },
         {
-          "numero": 42,
+          "numero": 41,
           "enunciado": "É correto afirmar que:",
           "alternativas": [
             "Nosso hinário possui 189 hinos com andamento em adagio",
@@ -9836,7 +9825,7 @@
           "imagem": null
         },
         {
-          "numero": 43,
+          "numero": 42,
           "enunciado": "Qual é a ordem correta dos andamentos do mais lento para o mais rápido?",
           "alternativas": [
             "Lento, largo, adagio, andante, moderato, allegro.",
@@ -9848,7 +9837,7 @@
           "imagem": null
         },
         {
-          "numero": 44,
+          "numero": 43,
           "enunciado": "Complete: Qual resposta se encaixa no trecho abaixo? Largo varia de 40 a 60 bpm Lento de 60 a 66 bpm Adagio de 66 a ____ bpm",
           "alternativas": [
             "56",
@@ -9860,7 +9849,7 @@
           "imagem": null
         },
         {
-          "numero": 45,
+          "numero": 44,
           "enunciado": "O segundo andamento no nosso hinário que mais aparece totalizando 127 hinos é o?",
           "alternativas": [
             "Andante",
@@ -9872,7 +9861,7 @@
           "imagem": null
         },
         {
-          "numero": 46,
+          "numero": 45,
           "enunciado": "Complete: Qual resposta se encaixa no trecho abaixo? Andante varia de 76 a 108 bpm Moderato de 108 a 120 bpm Allegro de 120 a ____ bpm",
           "alternativas": [
             "50",
@@ -9884,7 +9873,7 @@
           "imagem": null
         },
         {
-          "numero": 47,
+          "numero": 46,
           "enunciado": "O andamento do nosso hinário, com velocidade rápida que mais aparece totalizando 63 hinos é o?",
           "alternativas": [
             "Andante",
@@ -9896,7 +9885,7 @@
           "imagem": null
         },
         {
-          "numero": 48,
+          "numero": 47,
           "enunciado": "Os dois andamentos mais lentos, que menos aparece no nosso hinário são?",
           "alternativas": [
             "Não temos andamentos lentos",
@@ -9908,7 +9897,7 @@
           "imagem": null
         },
         {
-          "numero": 49,
+          "numero": 48,
           "enunciado": "Consideram-se três tipos de andamentos no hinário 5: 75% dos nossos hinos têm andamento moderado (Adagio, Andante e Moderato). 11% têm andamento lento (Largo e Lento). 13% têm andamento ligeiro (Allegro).",
           "alternativas": [
             "O texto acima está correto",
