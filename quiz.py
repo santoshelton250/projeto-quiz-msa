@@ -580,6 +580,134 @@ def _iniciar_simulado(
 # --------------------------------------------------------------------------- #
 # Tela 2 - Quiz
 # --------------------------------------------------------------------------- #
+def _preparar_imagem(caminho, largura_maxima: int, altura_maxima: int):
+    """Abre, melhora a nitidez e redimensiona uma figura (retorna PIL.Image)."""
+    with Image.open(caminho) as arquivo:
+        imagem = arquivo.copy()
+
+    imagem = ImageOps.grayscale(imagem)
+    imagem = ImageOps.autocontrast(imagem)
+    imagem = ImageEnhance.Contrast(imagem).enhance(1.15)
+    imagem = ImageEnhance.Sharpness(imagem).enhance(1.25)
+    imagem.thumbnail((largura_maxima, altura_maxima), Image.Resampling.LANCZOS)
+    return imagem
+
+
+def _marcar_alternativa(chave: str, indice: int) -> None:
+    """Guarda a alternativa selecionada (mutuamente exclusiva)."""
+    st.session_state[chave] = indice
+
+
+def _navegacao_pos_resposta() -> None:
+    """Feedback (sem revelar a correta) + botoes Proxima/Terminar."""
+    indice = st.session_state.indice
+    questoes = st.session_state.questoes
+
+    if st.session_state.get("ultimo_acerto"):
+        st.success("✅ Resposta correta!")
+    else:
+        st.error("❌ Resposta incorreta.")
+
+    col_a, col_b = st.columns(2)
+    tem_proxima = indice < len(questoes) - 1
+    with col_a:
+        if tem_proxima:
+            if st.button("Próxima pergunta", use_container_width=True):
+                st.session_state.indice += 1
+                st.session_state.ja_respondida = False
+                st.session_state.ultimo_acerto = None
+                st.rerun()
+        else:
+            st.info("Esta foi a última pergunta.")
+    with col_b:
+        if st.button(
+            "Terminar e emitir relatório",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state.tela = "relatorio"
+            st.rerun()
+
+
+def _tela_quiz_alternativas_ilustradas(questao: dict, numero) -> None:
+    """Layout especial para questoes cujas ALTERNATIVAS tem figura propria.
+
+    Usado SOMENTE quando a questao possui o campo opcional
+    `imagens_alternativas` (dict letra -> caminho). Questoes sem esse campo
+    seguem o fluxo tradicional do tela_quiz() e nao passam por aqui.
+
+    Estrutura: enunciado -> figura principal (referencia, separada) ->
+    cada alternativa (letra + sua figura; letras sem figura = so texto).
+    """
+    imgs_alt = questao.get("imagens_alternativas") or {}
+    principal = questao.get("imagem")
+    tem_principal = bool(principal) and (RAIZ / principal).exists()
+
+    # Enunciado destacado.
+    st.markdown(f"**{questao['enunciado']}**")
+
+    # Figura principal de referencia (nao vinculada a nenhuma alternativa),
+    # separada do bloco de alternativas.
+    if tem_principal:
+        st.caption("Figura de referência:")
+        img_principal = _preparar_imagem(RAIZ / principal, 460, 220)
+        st.image(img_principal, width="content")
+
+    st.write("")
+
+    chave_sel = f"alt_sel_{numero}"
+    alternativas = questao["alternativas"]
+
+    # Alternativas ilustradas, uma por linha (empilham no celular).
+    for i, texto in enumerate(alternativas):
+        letra = LETRAS[i]
+        caminho_alt = imgs_alt.get(letra)
+        tem_img_alt = bool(caminho_alt) and (RAIZ / caminho_alt).exists()
+
+        with st.container(border=True):
+            if tem_img_alt:
+                # PC: letra+radio a esquerda, figura a direita (empilha no mobile).
+                col_marca, col_img = st.columns([2, 3], gap="small")
+                with col_marca:
+                    st.radio(
+                        f"Alternativa {letra}",
+                        options=[letra],
+                        index=(0 if st.session_state.get(chave_sel) == i else None),
+                        key=f"alt_radio_{numero}_{letra}",
+                        disabled=st.session_state.ja_respondida,
+                        on_change=_marcar_alternativa,
+                        args=(chave_sel, i),
+                    )
+                with col_img:
+                    img_alt = _preparar_imagem(RAIZ / caminho_alt, 420, 170)
+                    st.image(img_alt, width="content")
+            else:
+                # Alternativa apenas textual (ex.: "Nenhuma das alternativas").
+                st.radio(
+                    f"{letra}) {texto}",
+                    options=[letra],
+                    index=(0 if st.session_state.get(chave_sel) == i else None),
+                    key=f"alt_radio_{numero}_{letra}",
+                    disabled=st.session_state.ja_respondida,
+                    on_change=_marcar_alternativa,
+                    args=(chave_sel, i),
+                )
+
+    st.divider()
+
+    if not st.session_state.ja_respondida:
+        if st.button("Confirmar resposta", type="primary", use_container_width=True):
+            escolhida = st.session_state.get(chave_sel)
+            if escolhida is None:
+                st.warning("Selecione uma alternativa antes de confirmar.")
+                return
+            _registrar_resposta(questao, escolhida)
+            st.rerun()
+        return
+
+    _navegacao_pos_resposta()
+
+
 def tela_quiz() -> None:
     questoes = st.session_state.questoes
     indice = st.session_state.indice
@@ -621,6 +749,12 @@ def tela_quiz() -> None:
     )
     st.progress((indice) / len(questoes))
     st.divider()
+
+    # DESVIO OPCIONAL: questoes com figuras individuais nas alternativas usam
+    # um layout dedicado. Questoes sem o campo seguem o fluxo tradicional.
+    if questao.get("imagens_alternativas"):
+        _tela_quiz_alternativas_ilustradas(questao, numero)
+        return
 
     # Layout: no PC, enunciado a esquerda e figura a direita; no celular as
     # colunas empilham automaticamente (comportamento nativo do Streamlit).

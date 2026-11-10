@@ -9046,7 +9046,12 @@
             "Nenhuma das alternativas acima"
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_14_pergunta_15.png"
+          "imagem": "imagens_quiz/fase_14_q15_principal.png",
+          "imagens_alternativas": {
+            "A": "imagens_quiz/fase_14_q15_alt_a.png",
+            "B": "imagens_quiz/fase_14_q15_alt_b.png",
+            "C": "imagens_quiz/fase_14_q15_alt_c.png"
+          }
         },
         {
           "numero": 16,
@@ -9278,7 +9283,12 @@
             "(C)"
           ],
           "correta": 2,
-          "imagem": "imagens_quiz/fase_14_pergunta_35.png"
+          "imagem": "imagens_quiz/fase_14_q35_principal.png",
+          "imagens_alternativas": {
+            "A": "imagens_quiz/fase_14_q35_alt_a.png",
+            "B": "imagens_quiz/fase_14_q35_alt_b.png",
+            "C": "imagens_quiz/fase_14_q35_alt_c.png"
+          }
         },
         {
           "numero": 36,
