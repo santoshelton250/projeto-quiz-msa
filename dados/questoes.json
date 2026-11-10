@@ -7747,7 +7747,7 @@
             "FM = Semínima pontuada UT = semínima pontuada"
           ],
           "correta": 2,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_11_pergunta_59.png"
         },
         {
           "numero": 60,
@@ -7759,7 +7759,7 @@
             "FM = Colcheia UT = semínima pontuada UC = semibreve pontuada"
           ],
           "correta": 3,
-          "imagem": null
+          "imagem": "imagens_quiz/fase_11_pergunta_60.png"
         }
       ]
     },
@@ -10546,5 +10546,5 @@
     }
   ],
   "total_questoes": 887,
-  "total_figuras": 215
+  "total_figuras": 217
 }
