@@ -21,12 +21,17 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image
 
+from app import config
+from app.services.imagens import (
+    largura_relatorio,
+    preparar_imagem,
+    preparar_imagem_questao,
+)
 from app.services.simulados import gerar_questoes_simulado
 # --------------------------------------------------------------------------- #
 # Configuracao geral
@@ -38,11 +43,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-RAIZ = Path(__file__).resolve().parent
-ARQUIVO_JSON = RAIZ / "dados" / "questoes.json"
-PASTA_RELATORIOS = RAIZ / "relatorios"
+RAIZ = config.RAIZ
+ARQUIVO_JSON = config.ARQUIVO_JSON
+PASTA_RELATORIOS = config.PASTA_RELATORIOS
 
-LETRAS = "ABCDEFGH"
+LETRAS = config.LETRAS
 
 # Ajustes de estilo para melhor leitura no celular (texto e botoes maiores).
 st.markdown(
@@ -436,19 +441,6 @@ def _iniciar_simulado(
 # --------------------------------------------------------------------------- #
 # Tela 2 - Quiz
 # --------------------------------------------------------------------------- #
-def _preparar_imagem(caminho, largura_maxima: int, altura_maxima: int):
-    """Abre, melhora a nitidez e redimensiona uma figura (retorna PIL.Image)."""
-    with Image.open(caminho) as arquivo:
-        imagem = arquivo.copy()
-
-    imagem = ImageOps.grayscale(imagem)
-    imagem = ImageOps.autocontrast(imagem)
-    imagem = ImageEnhance.Contrast(imagem).enhance(1.15)
-    imagem = ImageEnhance.Sharpness(imagem).enhance(1.25)
-    imagem.thumbnail((largura_maxima, altura_maxima), Image.Resampling.LANCZOS)
-    return imagem
-
-
 def _marcar_alternativa(chave: str, indice: int) -> None:
     """Guarda a alternativa selecionada (mutuamente exclusiva)."""
     st.session_state[chave] = indice
@@ -502,11 +494,12 @@ def _tela_quiz_alternativas_ilustradas(questao: dict, numero) -> None:
     # Enunciado destacado.
     st.markdown(f"**{questao['enunciado']}**")
 
-    # Figura principal de referencia (nao vinculada a nenhuma alternativa),
+        # Figura principal de referencia (nao vinculada a nenhuma alternativa),
     # separada do bloco de alternativas.
     if tem_principal:
         st.caption("Figura de referência:")
-        img_principal = _preparar_imagem(RAIZ / principal, 460, 220)
+        largura_p, altura_p = config.FIGURA_ALTERNATIVA_PRINCIPAL
+        img_principal = preparar_imagem(RAIZ / principal, largura_p, altura_p)
         st.image(img_principal, width="content")
 
     st.write("")
@@ -535,7 +528,8 @@ def _tela_quiz_alternativas_ilustradas(questao: dict, numero) -> None:
                         args=(chave_sel, i),
                     )
                 with col_img:
-                    img_alt = _preparar_imagem(RAIZ / caminho_alt, 420, 170)
+                    largura_a, altura_a = config.FIGURA_ALTERNATIVA_IMAGEM
+                    img_alt = preparar_imagem(RAIZ / caminho_alt, largura_a, altura_a)
                     st.image(img_alt, width="content")
             else:
                 # Alternativa apenas textual (ex.: "Nenhuma das alternativas").
@@ -634,45 +628,18 @@ def tela_quiz() -> None:
             disabled=st.session_state.ja_respondida,
         )
 
-    if col_img is not None:
-        with col_img:
-            caminho_imagem = RAIZ / questao["imagem"]
-
-            with Image.open(caminho_imagem) as arquivo:
-                imagem = arquivo.copy()
-
-            # Melhorar a nitidez de todas as figuras
-            imagem = ImageOps.grayscale(imagem)
-            imagem = ImageOps.autocontrast(imagem)
-            imagem = ImageEnhance.Contrast(imagem).enhance(1.15)
-            imagem = ImageEnhance.Sharpness(imagem).enhance(1.25)
-
-            largura, altura = imagem.size
-            proporcao = largura / altura
-
-            if proporcao < 0.75:
-                largura_maxima = 170
-                altura_maxima = 220
-
-            elif proporcao > 1.8:
-                largura_maxima = 650
-                altura_maxima = 320
-
-            else:
-                largura_maxima = 330
-                altura_maxima = 300
-
-            imagem.thumbnail(
-                (largura_maxima, altura_maxima),
-                Image.Resampling.LANCZOS
-            )
-
-           
-            st.image(
-                imagem,
-                caption="Figura da questão",
-                width="stretch" if imagem.width > 400 else "content"
-            )
+        if col_img is not None:
+            with col_img:
+                imagem = preparar_imagem_questao(RAIZ / questao["imagem"])
+                st.image(
+                    imagem,
+                    caption='Figura da questao',
+                    width=(
+                        'stretch'
+                        if imagem.width > config.FIGURA_LARGURA_STRETCH_PX
+                        else 'content'
+                    ),
+                )
 
 
     st.divider()
@@ -800,18 +767,7 @@ def tela_relatorio() -> None:
                     with Image.open(caminho) as arquivo:
                         largura, altura = arquivo.size
 
-                    # Tamanho máximo na tela, em pixels
-                    largura_maxima = 450
-                    altura_maxima = 180
-
-                    # Reduz proporcionalmente, sem ampliar
-                    fator = min(
-                        1.0,
-                        largura_maxima / largura,
-                        altura_maxima / altura
-                    )
-
-                    largura_final = max(1, int(largura * fator))
+                    largura_final = largura_relatorio(largura, altura)
 
                     st.image(
                         str(caminho),
@@ -1003,9 +959,8 @@ def gerar_pdf() -> bytes:
                     with Image.open(caminho) as arquivo:
                         largura, altura = arquivo.size
 
-                    # Limites máximos no PDF, em milímetros
-                    largura_maxima = 70
-                    altura_maxima = 40
+                    # Limites maximos no PDF, em milimetros (config).
+                    largura_maxima, altura_maxima = config.PDF_FIGURA_LIMITE_MM
 
                     # Preserva a proporção da imagem
                     fator = min(
