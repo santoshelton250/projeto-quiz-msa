@@ -1,3 +1,6 @@
-﻿streamlit
-pillow
-fpdf2
+﻿# Dependencias de PRODUCAO (usadas pelo app em execucao: quiz.py + app/).
+# Versoes fixas para o deploy ser reproduzivel (evita quebrar "sozinho"
+# quando um rebuild instala uma versao nova incompativel).
+streamlit==1.62.0
+pillow==12.3.0
+fpdf2==2.8.9

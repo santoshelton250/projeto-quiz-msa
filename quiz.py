@@ -20,7 +20,6 @@ Executar:
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -32,6 +31,7 @@ from app.services.imagens import (
     preparar_imagem,
     preparar_imagem_questao,
 )
+from app.services.pdf import gerar_pdf, nome_arquivo_pdf
 from app.services.simulados import gerar_questoes_simulado
 # --------------------------------------------------------------------------- #
 # Configuracao geral
@@ -781,9 +781,9 @@ def tela_relatorio() -> None:
 
     st.divider()
 
-    # Geracao/Download do PDF.
+        # Geracao/Download do PDF.
     if st.session_state.pdf_bytes is None:
-        st.session_state.pdf_bytes = gerar_pdf()
+        st.session_state.pdf_bytes = gerar_pdf(_dados_relatorio())
     st.download_button(
         "📄 Baixar relatório em PDF",
         data=st.session_state.pdf_bytes,
@@ -795,15 +795,27 @@ def tela_relatorio() -> None:
     _botoes_finais()
 
 
-def _nome_arquivo_pdf() -> str:
-    aluno = "".join(
-        c if c.isalnum() else "_" for c in st.session_state.aluno
-    ).strip("_") or "aluno"
-    data = datetime.now().strftime("%Y%m%d_%H%M")
-    if st.session_state.get("modo_simulado"):
-        return f"relatorio_{aluno}_simulado_{data}.pdf"
-    return f"relatorio_{aluno}_modulo{st.session_state.modulo}_{data}.pdf"
+def _dados_relatorio() -> dict:
+    """Empacota o estado da sessao nos dados que o gerador de PDF espera."""
+    return {
+        "aluno": st.session_state.aluno,
+        "modulo": st.session_state.modulo,
+        "respondidas": st.session_state.respondidas,
+        "acertos": st.session_state.acertos,
+        "erros": st.session_state.erros,
+        "modo_simulado": bool(st.session_state.get("modo_simulado")),
+        "fases_simulado": st.session_state.get("fases_simulado", ""),
+        "saidas_tela": int(st.session_state.get("saidas_tela", 0) or 0),
+        "registros_erro": st.session_state.registros_erro,
+    }
 
+
+def _nome_arquivo_pdf() -> str:
+    return nome_arquivo_pdf(
+        st.session_state.aluno,
+        st.session_state.modulo,
+        bool(st.session_state.get('modo_simulado')),
+    )
 
 def _botoes_finais() -> None:
     col_a, col_b = st.columns(2)
@@ -832,175 +844,6 @@ def tela_encerrado() -> None:
     if st.button("Iniciar novamente", use_container_width=True):
         reiniciar()
         st.rerun()
-
-
-# --------------------------------------------------------------------------- #
-# Geracao do PDF do relatorio
-# --------------------------------------------------------------------------- #
-# Mapa de caracteres "tipograficos"/gregos que nao existem em latin-1 (fontes
-# core do PDF) para equivalentes ASCII seguros.
-_MAPA_PDF = {
-    "\u2013": "-",    # en-dash
-    "\u2014": "-",    # em-dash
-    "\u2018": "'",    # aspas simples esquerda
-    "\u2019": "'",    # aspas simples direita
-    "\u201c": '"',    # aspas duplas esquerda
-    "\u201d": '"',    # aspas duplas direita
-    "\u2026": "...",  # reticencias
-    "\u2022": "-",    # bullet
-    "\u00a0": " ",    # espaco nao-quebravel
-    # Letras gregas que podem ter sido digitadas no lugar das latinas.
-    "\u039c": "M", "\u039d": "N", "\u039f": "O", "\u0391": "A",
-    "\u0392": "B", "\u0395": "E", "\u0397": "H", "\u0399": "I",
-    "\u039a": "K", "\u03a1": "P", "\u03a4": "T", "\u03a5": "Y",
-    "\u03a7": "X", "\u0396": "Z",
-}
-
-
-def _texto_pdf(texto: str) -> str:
-    """Normaliza um texto para os limites das fontes core (latin-1) do PDF."""
-    if not isinstance(texto, str):
-        texto = str(texto)
-    for origem, destino in _MAPA_PDF.items():
-        texto = texto.replace(origem, destino)
-    # Rede de seguranca: troca qualquer caractere fora do latin-1 por "?".
-    return texto.encode("latin-1", errors="replace").decode("latin-1")
-
-
-def gerar_pdf() -> bytes:
-    """Monta o relatorio em PDF (fpdf2) e retorna os bytes.
-
-    Compativel com fpdf2 1.x e 2.x: usa largura explicita nos `multi_cell`
-    (evita o erro "Not enough horizontal space" da versao 2.8) e move o cursor
-    para a linha seguinte de forma portavel.
-    """
-    from fpdf import FPDF
-
-    aluno = _texto_pdf(st.session_state.aluno)
-    modulo = st.session_state.modulo
-    respondidas = st.session_state.respondidas
-    acertos = st.session_state.acertos
-    erros = st.session_state.erros
-    porcentagem = (acertos / respondidas * 100) if respondidas else 0.0
-
-    pdf = FPDF(format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-
-    # Detalhes de compatibilidade entre versoes do fpdf2.
-    margem_esq = pdf.l_margin
-
-    def linha(txt: str, altura: float = 7, negrito: bool = False) -> None:
-        """Escreve uma linha simples ocupando toda a largura util."""
-        pdf.set_font("Helvetica", "B" if negrito else "", 11)
-        pdf.set_x(margem_esq)
-        largura = pdf.w - pdf.l_margin - pdf.r_margin
-        pdf.multi_cell(largura, altura, _texto_pdf(txt))
-
-    def paragrafo(
-        txt: str, altura: float = 6, negrito: bool = False,
-        cor: tuple[int, int, int] | None = None,
-    ) -> None:
-        """Escreve um paragrafo com quebra de linha automatica."""
-        pdf.set_font("Helvetica", "B" if negrito else "", 11)
-        if cor is not None:
-            pdf.set_text_color(*cor)
-        pdf.set_x(margem_esq)
-        largura = pdf.w - pdf.l_margin - pdf.r_margin
-        pdf.multi_cell(largura, altura, _texto_pdf(txt))
-        if cor is not None:
-            pdf.set_text_color(0, 0, 0)
-
-    # Cabecalho
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.set_x(margem_esq)
-    pdf.multi_cell(pdf.w - pdf.l_margin - pdf.r_margin, 10,
-                   "Quiz MSA - Relatorio de Desempenho")
-    linha(f"Aluno: {aluno}")
-    if st.session_state.get("modo_simulado"):
-        linha(f"Simulado: {st.session_state.get('fases_simulado', '')}")
-    else:
-        linha(f"Modulo: {modulo}")
-    linha(f"Emitido em: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    pdf.ln(2)
-
-    # Desempenho (nome do aluno ja consta no cabecalho).
-    linha(f"Desempenho: {porcentagem:.1f}% de acertos", altura=8, negrito=True)
-    linha(f"Acertos: {acertos} de {respondidas} respondidas")
-
-    # Evidencia de monitoramento (somente simulado).
-    if st.session_state.get("modo_simulado"):
-        saidas = int(st.session_state.get("saidas_tela", 0) or 0)
-        if saidas > 0:
-            paragrafo(
-                f"Monitoramento: o aluno saiu da tela {saidas} vez(es).",
-                cor=(180, 0, 0),
-            )
-        else:
-            paragrafo("Monitoramento: o aluno permaneceu na tela.")
-
-    pdf.ln(3)
-
-    # Revisao das questoes incorretas (sem listar as certas).
-    if erros and st.session_state.registros_erro:
-        linha("Revisao das questoes incorretas", altura=8, negrito=True)
-
-        for registro in st.session_state.registros_erro:
-            pdf.ln(1)
-            paragrafo(f"Questao {registro['numero']}", negrito=True)
-            paragrafo(f"Enunciado: {registro['enunciado']}")
-
-           
-            img_rel = registro.get("imagem")
-            if img_rel and (RAIZ / img_rel).exists():
-                try:
-                    caminho = RAIZ / img_rel
-
-                    with Image.open(caminho) as arquivo:
-                        largura, altura = arquivo.size
-
-                    # Limites maximos no PDF, em milimetros (config).
-                    largura_maxima, altura_maxima = config.PDF_FIGURA_LIMITE_MM
-
-                    # Preserva a proporção da imagem
-                    fator = min(
-                        largura_maxima / largura,
-                        altura_maxima / altura
-                    )
-
-                    largura_pdf = largura * fator
-                    altura_pdf = altura * fator
-
-                    pdf.ln(1)
-                    pdf.set_x(margem_esq)
-
-                    pdf.image(
-                        str(caminho),
-                        w=largura_pdf,
-                        h=altura_pdf
-                    )
-
-                    pdf.set_x(margem_esq)
-
-                except Exception:
-                    pass
-
-
-            pdf.ln(1)
-            paragrafo(f"Sua resposta: {registro['resposta_aluno']}", cor=(180, 0, 0))
-            paragrafo(
-                f"Resposta correta: {registro['resposta_correta']}",
-                cor=(0, 130, 0),
-            )
-            pdf.ln(3)
-    else:
-        paragrafo("Parabens! Voce acertou todas as questoes.")
-
-    saida = pdf.output(dest="S")
-    # fpdf2 (v1.x) devolve str codificada em latin-1 quando dest="S".
-    if isinstance(saida, str):
-        return saida.encode("latin-1", errors="replace")
-    return bytes(saida)
 
 
 # --------------------------------------------------------------------------- #
